@@ -78,7 +78,7 @@ pub struct Message {
     /// Client hardware address
     chaddr: [u8; 16],
     /// Server hostname
-    sname: Option<String>,
+    sname: Vec<u8>,
     // File name
     file: Option<String>,
     magic: [u8; 4],
@@ -100,7 +100,7 @@ impl Default for Message {
             siaddr: Ipv4Addr::UNSPECIFIED,
             giaddr: Ipv4Addr::UNSPECIFIED,
             chaddr: [0; 16],
-            sname: None,
+            sname: vec![0; 64],
             file: None,
             magic: MAGIC,
             opts: DhcpOptions::default(),
@@ -313,19 +313,22 @@ impl Message {
         self.file = Some(file);
         self
     }
+
     /// Get a reference to the message's sname.
-    pub fn sname(&self) -> Option<&String> {
-        self.sname.as_ref()
+    pub fn sname(&self) -> &[u8] {
+        &self.sname[..64]
     }
+
     /// Set the message's sname.
     /// # Panic
     /// panics will if sname is greater than 64 bytes long
-    pub fn set_sname<S: Into<String>>(&mut self, sname: S) -> &mut Self {
+    pub fn set_sname<V: Into<Vec<u8>>>(&mut self, sname: V) -> &mut Self {
         let sname = sname.into();
         assert!(sname.len() <= 64);
-        self.sname = Some(sname);
+        self.sname = sname; //Some(sname);
         self
     }
+
     /// Get a reference to the message's opts.
     pub fn opts(&self) -> &DhcpOptions {
         &self.opts
@@ -358,7 +361,7 @@ impl Decodable for Message {
             siaddr: decoder.read_u32()?.into(),
             giaddr: decoder.read_u32()?.into(),
             chaddr: decoder.read::<16>()?,
-            sname: decoder.read_const_string::<64>()?,
+            sname: decoder.read::<64>()?.to_vec(),
             file: decoder.read_const_string::<128>()?,
             // TODO: check magic bytes against expected?
             magic: decoder.read::<4>()?,
@@ -381,7 +384,7 @@ impl Encodable for Message {
         e.write_u32(self.siaddr.into())?;
         e.write_u32(self.giaddr.into())?;
         e.write_slice(&self.chaddr[..])?;
-        e.write_fill_string(&self.sname, 64)?;
+        e.write_slice(&self.sname[..])?;
         e.write_fill_string(&self.file, 128)?;
 
         e.write(self.magic)?;
